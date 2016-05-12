@@ -12,6 +12,8 @@ var fs = require('fs'),
     AWS = require('aws-sdk'),
     async = require('async');
 
+
+
 //==============================
 //CLASSES
 //==============================
@@ -28,11 +30,11 @@ module.exports = DynamoDBStream
 function DynamoDBStream(tableName, config, streamArn, previousShards) {
 
     // Set AWS Config
-    var creds = new AWS.Credentials(config.accessKeyId, config.secretAccessKey);
+    //var creds = new AWS.Credentials(config.accessKeyId, config.secretAccessKey);
 
     // Initialise DynamoDB Object and DynamoDB Stream Object
     this._tableName = tableName;
-    this._dynamodbstreams = new AWS.DynamoDBStreams({"credentials": creds, "region": config.region});
+    this._dynamodbstreams = new AWS.DynamoDBStreams();
 
     // Attributes
     this._streamArn = streamArn;
@@ -133,7 +135,7 @@ DynamoDBStream.prototype._startShards = function(parentId, callback) {
                     // We have a matching shard
                     this._pollShard(shard, next);
                 } else {
-					console.log("---- filtered:", "Table:", this._tableName, "Shard:", shard.ShardId, "Parent:", shard.ParentShardId, "Filter:", parentId, "####")
+					// console.log("---- filtered:", "Table:", this._tableName, "Shard:", shard.ShardId, "Parent:", shard.ParentShardId, "Filter:", parentId, "####")
                     next();
                 }
 
@@ -258,6 +260,8 @@ DynamoDBStream.prototype._getRecords = function(iterator, callback) {
 // Polls the shard until the end of time.
 DynamoDBStream.prototype._pollShard = function(shard, next) {
 
+    console.log('Polling shard: %s', JSON.stringify(shard));
+
     // Ignore closed shards
     if (shard.ShardId in this._shardSequenceNumbers && this._shardSequenceNumbers[shard.ShardId] == "closed") {
         console.log("---- closed shard:", "Table:", this._tableName, "Shard:", shard.ShardId, "Parent:", shard.ParentShardId, "####")
@@ -279,7 +283,8 @@ DynamoDBStream.prototype._pollShard = function(shard, next) {
             this._doPollShard(shard, next);
         }.bind(this));
 
-    } else {
+    } 
+    else {
 
         // This is an existing shard
         console.log("++++ restart shard:", "Table:", this._tableName, "Shard:", shard.ShardId, "Parent:", shard.ParentShardId, "####")
@@ -309,6 +314,10 @@ DynamoDBStream.prototype._doPollShard = function(shard, next) {
             function _whileValidIterator(callback) {
 
                 this._getRecords(iterator, function(err, records, nextIterator) {
+                    
+                    if (err) console.log('OMG ERROR %s', JSON.stringify(err));
+
+                    console.log('Checking shard %s', shard.ShardId);
 
                     // Store the next iterator if there is one
                     iterator = nextIterator;
@@ -323,7 +332,13 @@ DynamoDBStream.prototype._doPollShard = function(shard, next) {
                         function _recordEvent(record, next) {
 
                             has_recorded_event = true;
-                            this._onRecord(this._tableName, shard, record, next);
+
+                            var cb = function() {
+                                this._shardSequenceNumbers[shard.ShardId] = record.dynamodb.SequenceNumber;
+                                this._onShardUpdate(this._tableName, shard, record.dynamodb.SequenceNumber, next);
+                            }.bind(this);
+
+                            this._onRecord(this._tableName, shard, record, cb);
 
                         }.bind(this),
 
@@ -399,5 +414,3 @@ DynamoDBStream.prototype._checkHeartBeat = function() {
 }
 
 //::::::::::::::::::::::::::::::
-
-

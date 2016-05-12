@@ -24,6 +24,7 @@
   "homepage": "https://bitbucket.org/mysticpants/dynamodbstream/",
   "dependencies": {
     "async": "^1.5.2",
-    "aws-sdk": "~2.3.4"
+    "aws-sdk": "~2.3.4",
+    "fs": "0.0.2"
   }
 }
