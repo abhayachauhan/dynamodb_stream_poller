@@ -14,9 +14,8 @@ var counter = 0;
 var shards = {};
 
 fs.readFile(file, 'utf8', function(err, data) {
-    if (err) throw err;
-    
-    shards = JSON.parse(data);
+    if (err) shards = {};
+    else shards = JSON.parse(data);
     stream = new DynamoDBStream('TestDR', {}, streamArn, shards);
 
     stream.onRecord(function(tableName, shard, record, next) {
@@ -33,7 +32,7 @@ fs.readFile(file, 'utf8', function(err, data) {
     });
 
     stream.onShardUpdate(function(tableName, shard, seq, next) {
-        shards[shard.ShardId] = seq;
+        shards[shard.ShardId] = {seq: seq };
 
         fs.writeFile(file, JSON.stringify(shards), function(err) {
             if (err) return console.log(err);
